@@ -35,18 +35,18 @@ trigger:
   - platform: state
     entity_id: !input wunsch_temp_entity
 
+# NEUE KORRIGIERTE BEDINGUNG
 condition:
-  - condition: or
-    conditions:
-      - condition: template
-        value_template: "{{ !input window_sensor_entity == '' }}"
-      - condition: and
-        conditions:
-          - condition: template
-            value_template: "{{ !input window_sensor_entity != '' }}"
-          - condition: state
-            entity_id: !input window_sensor_entity
-            state: 'off'
+  # Prüfen, ob eine Entität ausgewählt wurde UND ob diese 'off' ist
+  - condition: template
+    value_template: >
+      {% if is_state('!input window_sensor_entity', 'off') %}
+        True
+      {% elif '!input window_sensor_entity' == 'null' or '!input window_sensor_entity' == '' or 'window_sensor_entity' not in states %}
+        True
+      {% else %}
+        False
+      {% endif %}
     alias: "Prüfen, ob Fenster/Tür geschlossen ist (optional)"
 
 action:
@@ -59,7 +59,7 @@ action:
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       
       max_solltemp: 30
-      # NEUE LOGIK: Begrenzung der Positiv-Korrektur auf maximal +1.0
+      # Begrenzung der Positiv-Korrektur auf maximal +1.0
       delta_fuer_heizen: >
         {% set raw_delta = (wunsch_temp - ist_temp) * 3 %}
         
