@@ -45,18 +45,6 @@ trigger:
   - platform: state
     entity_id: !input wunsch_temp_entity
 
-condition:
-  - condition: template
-    value_template: >
-      {# FIX: Prüft, ob der Sensor existiert ODER geschlossen ist. Nutzt die korrekte !input Syntax im String. #}
-      {% set sensor_id = '!input window_sensor_entity' %}
-      {% if sensor_id == '' or is_state(sensor_id, 'off') %}
-        True
-      {% else %}
-        False
-      {% endif %}
-    alias: "Prüfen, ob Fenster/Tür geschlossen ist (optional)"
-
 action:
   - variables:
       # Zuweisung der Entitäts-IDs
