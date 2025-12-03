@@ -46,7 +46,7 @@ trigger:
     entity_id: !input wunsch_temp_entity
 
 action:
-  - if: '{{ if(is_state(''!input window_sensor_entity'', ''on''), true, false) }}'
+  - if: '{{ iif(is_state(''!input window_sensor_entity'', ''on''), true, false) }}'
     then:
       - stop: "Fenster/Tür ist offen, Automatisierung wird gestoppt."
 
