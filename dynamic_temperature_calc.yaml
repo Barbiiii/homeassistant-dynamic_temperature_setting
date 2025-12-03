@@ -8,14 +8,13 @@ blueprint:
       description: Die Entität (z.B. climate.schlafi_c931), deren Temperatur geregelt wird.
       selector:
         entity:
-          domain: climate
+          domain: climate # Muss eine Klima-Entität sein
     temp_sensor_entity:
       name: Temperatursensor (Ist-Temperatur)
       description: Der externe Temperatursensor (z.B. sensor.lumi_temperatur).
       selector:
         entity:
-          domain: sensor
-          device_class: temperature
+          domain: sensor # Nur die Domain 'sensor' wird verwendet, keine Klassifizierung
     wunsch_temp_entity:
       name: Wunschtemperatur (Input-Helper)
       description: Der input_number-Helfer, der die gewünschte Temperatur speichert.
@@ -27,8 +26,7 @@ blueprint:
       description: Optionaler Sensor, der prüft, ob gelüftet wird. Automatisierung stoppt, wenn Sensor offen ist (state 'on'). Leer lassen, um die Prüfung zu ignorieren.
       selector:
         entity:
-          domain: binary_sensor
-          device_class: window
+          domain: binary_sensor # Nur die Domain 'binary_sensor' wird verwendet, keine Klassifizierung
       default: ''
 
 trigger:
