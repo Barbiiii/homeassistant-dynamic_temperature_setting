@@ -23,11 +23,11 @@ blueprint:
           domain: input_number
     korrektur_faktor:
       name: Korrekturfaktor (z.B. 3.0)
-      description: Multiplikator für die Temperaturdifferenz (Diff x Faktor). Höherer Wert = aggressiveres Heizen.
+      description: Additive Korrektur zur Temperaturdifferenz (Diff + Faktor). Höherer Wert = aggressiveres Heizen.
       default: 3.0
       selector:
         number:
-          min: 1.0
+          min: 0.5
           max: 10.0
           unit_of_measurement: "Faktor"
           mode: box
@@ -60,41 +60,46 @@ condition:
 
 action:
   - variables:
-      # Zuweisung der Input-Entitäten
+      # Zuweisung und Typumwandlung der Variablen
       climate_ent: !input climate_entity
       temp_sensor_ent: !input temp_sensor_entity
       wunsch_temp_ent: !input wunsch_temp_entity
       
-      # Abrufen des Korrekturfaktors aus dem Input-Feld
-      faktor: !input korrektur_faktor
-      
-      # Abrufen der Ist- und Wunschtemperatur
+      faktor: "{{ float(!input korrektur_faktor) }}"
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       
       max_solltemp: 30
       temp_diff: "{{ wunsch_temp - ist_temp }}"
       
-      # LOGIK: Diff * Korrekturfaktor, mit 0.5 Boost im Nahbereich
+      # LOGIK: Hybrid-Steuerung (Additive Faktoren für Heizen, Multiplikativ/Limit für Abkühlen)
       delta_fuer_heizen: >
-        {% set raw_delta = temp_diff * faktor %}
         
-        {# Fall 1: Aggressiver Boost (0 < Diff <= 0.5) -> Multiplikation + 0.5 Schub #}
-        {% if temp_diff > 0 and temp_diff <= 0.5 %}
-            {{ (raw_delta + 0.5) | round(1) }}
-        
-        {# Fall 2: Stark Heizen (Diff > 0.5) -> Nur Multiplikation #}
-        {% elif temp_diff > 0.5 %}
-            {{ raw_delta | round(1) }}
+        {# FALLS HEIZEN NÖTIG (temp_diff > 0) -> Additive Korrektur (wie gewünscht) #}
+        {% if temp_diff > 0 %}
+            {% set raw_additive_delta = temp_diff + faktor %}
+            
+            {# Fall 1: Aggressiver Boost (0 < Diff <= 0.5) -> Additive Korrektur + 0.5 Schub #}
+            {% if temp_diff <= 0.5 %}
+                {{ (raw_additive_delta + 0.5) | round(1) }}
+            
+            {# Fall 2: Stark Heizen (Diff > 0.5) -> Nur Additive Korrektur #}
+            {% else %}
+                {{ raw_additive_delta | round(1) }}
+            {% endif %}
 
-        {# Fall 3: Halten/Abkühlen im Nahbereich (Negatives Delta, aber Ist < Wunsch + 0.5) -> Limit auf min. -1.0 #}
-        {# Dieser Block wird nur relevant, wenn Ist < Wunsch. Sobald Ist >= Wunsch, greift die neue Haltezone oder der Lüftermodus. #}
-        {% elif raw_delta < 0 and ist_temp < (wunsch_temp + 0.5) %}
-          {{ [raw_delta, -1.0] | max | round(1) }}
-          
-        {# Fall 4: Starkes Abkühlen/Gleich Null #}
+        {# FALLS ABKÜHLEN/HALTEN NÖTIG (temp_diff <= 0) -> Multiplikative Korrektur (um Logik zu gewährleisten) #}
         {% else %}
-          {{ raw_delta | round(1) }}
+            {% set raw_multiplicative_delta = temp_diff * 3.0 %} 
+            
+            {# Limit auf min. -1.0, nur wenn IST < WUNSCH + 0.5 (Nahbereich) #}
+            {% if raw_multiplicative_delta < 0 and ist_temp < (wunsch_temp + 0.5) %}
+              {{ [raw_multiplicative_delta, -1.0] | max | round(1) }}
+            
+            {# Starkes Abkühlen oder Diff = 0 #}
+            {% else %}
+              {{ raw_multiplicative_delta | round(1) }}
+            {% endif %}
         {% endif %}
           
       # Berechnet die neue Solltemperatur und rundet sie auf die nächste 0.5er Stufe
@@ -123,20 +128,18 @@ action:
             data:
               fan_mode: Low
               
-      # NEUE ZONE: DEAD-BAND/HALTEZONE (Wunsch <= Ist < Wunsch + 0.25)
-      # In dieser Zone soll die Solltemperatur NICHT verändert werden (z.B. bei 25.5 °C bleiben)
+      # ZONE 2: DEAD-BAND/HALTEZONE (Wunsch <= Ist < Wunsch + 0.25)
+      # In dieser Zone passiert nichts, Solltemperatur bleibt auf dem vorherigen aggressiven Wert.
       - conditions:
           - condition: template
             value_template: "{{ ist_temp >= wunsch_temp }}"
           - condition: template
             value_template: "{{ ist_temp < (wunsch_temp + 0.25) }}"
         sequence: 
-          # Leere Sequenz: Automatisierung wird hier beendet, ohne Aktionen
-          # Der Default-Block wird NICHT erreicht, Solltemp bleibt auf dem alten Wert
-          []
+          [] # Leere Sequenz: Automatisierung beendet hier.
               
     default:
-      # Alle HEIZ-Fälle und der HALTEN/Abkühl-Fall greifen hier
+      # ZONE 3 & 4: Alle HEIZ-Fälle greifen hier
       - service: climate.set_hvac_mode
         target:
           entity_id: '{{ climate_ent }}'
