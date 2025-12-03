@@ -1,6 +1,6 @@
 blueprint:
-  name: Klimaanlage - Dynamische Temperaturanpassung
-  description: Passt die Soll-Temperatur einer Klimaanlage/Heizung dynamisch basierend auf einem externen Temperatursensor an.
+  name: Klimaanlage - Dynamische Temperaturanpassung (Faktor)
+  description: Passt die Soll-Temperatur einer Klimaanlage/Heizung dynamisch basierend auf einem externen Temperatursensor an. Nutzt einen einstellbaren Korrekturfaktor.
   domain: automation
   input:
     climate_entity:
@@ -21,6 +21,16 @@ blueprint:
       selector:
         entity:
           domain: input_number
+    korrektur_faktor:
+      name: Korrekturfaktor (z.B. 3.0)
+      description: Multiplikator für die Temperaturdifferenz (Diff x Faktor). Höherer Wert = aggressiveres Heizen.
+      default: 3.0
+      selector:
+        number:
+          min: 1.0
+          max: 10.0
+          unit_of_measurement: "Faktor"
+          mode: box
     window_sensor_entity:
       name: Fenster-/Türsensor (Lüftungsprüfung)
       description: Optionaler Sensor, der prüft, ob gelüftet wird. Automatisierung stoppt, wenn Sensor offen ist (state 'on'). Leer lassen, um die Prüfung zu ignorieren.
@@ -38,6 +48,7 @@ trigger:
 condition:
   - condition: template
     value_template: >
+      {# Prüft, ob der optionale Sensor nicht existiert ODER 'off' ist #}
       {% if is_state('!input window_sensor_entity', 'off') %}
         True
       {% elif '!input window_sensor_entity' == 'null' or '!input window_sensor_entity' == '' or 'window_sensor_entity' not in states %}
@@ -49,54 +60,56 @@ condition:
 
 action:
   - variables:
+      # Zuweisung der Input-Entitäten
       climate_ent: !input climate_entity
       temp_sensor_ent: !input temp_sensor_entity
       wunsch_temp_ent: !input wunsch_temp_entity
       
+      # Abrufen des Korrekturfaktors aus dem Input-Feld
+      faktor: !input korrektur_faktor
+      
+      # Abrufen der Ist- und Wunschtemperatur
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       
       max_solltemp: 30
-      # Begrenzung der Positiv-Korrektur auf maximal +1.0
+      temp_diff: "{{ wunsch_temp - ist_temp }}"
+      
+      # LOGIK: Diff * Korrekturfaktor, mit 0.5 Boost im Nahbereich
       delta_fuer_heizen: >
-        {% set raw_delta = (wunsch_temp - ist_temp) * 3 %}
+        {% set raw_delta = temp_diff * faktor %}
         
-        {# Fall 1: Positiv (Heizen) -> Limit auf max. +1.0 #}
-        {% if raw_delta > 0 %}
-          {{ [raw_delta, 1.0] | min | round(1) }}
+        {# Fall 1: Aggressiver Boost (0 < Diff <= 0.5) -> Multiplikation + 0.5 Schub #}
+        {% if temp_diff > 0 and temp_diff <= 0.5 %}
+            {{ (raw_delta + 0.5) | round(1) }}
         
-        {# Fall 2: Negativ (Abkühlen/Halten im Nahbereich) -> Limit auf min. -1.0 #}
+        {# Fall 2: Stark Heizen (Diff > 0.5) -> Nur Multiplikation #}
+        {% elif temp_diff > 0.5 %}
+            {{ raw_delta | round(1) }}
+
+        {# Fall 3: Halten/Abkühlen im Nahbereich (Negatives Delta, aber Ist < Wunsch + 0.5) -> Limit auf min. -1.0 #}
         {% elif raw_delta < 0 and ist_temp < (wunsch_temp + 0.5) %}
           {{ [raw_delta, -1.0] | max | round(1) }}
           
-        {# Fall 3: Negativ (Starke Überhitzung) -> Keine Begrenzung #}
+        {# Fall 4: Starkes Abkühlen/Gleich Null #}
         {% else %}
           {{ raw_delta | round(1) }}
         {% endif %}
           
+      # Berechnet die neue Solltemperatur und rundet sie auf die nächste 0.5er Stufe
       neue_solltemp_heizen: >
         {% set ungefilterte_solltemp = wunsch_temp + delta_fuer_heizen %} {% set
         temp_mal_zwei = ungefilterte_solltemp * 2 %} {% set aufgerundet =
         temp_mal_zwei | round(0, 'ceil') %} {% set gerundet_final = aufgerundet
         / 2 %} {{ [max_solltemp, gerundet_final] | min | round(1) }}
+        
       aktuelle_solltemp: "{{ state_attr(climate_ent, 'temperature') | float(0) }}"
 
   - choose:
+      # ZONE 1: LÜFTERMODUS (Ist >= Wunsch + 0.25)
       - conditions:
           - condition: template
-            value_template: "{{ ist_temp > (wunsch_temp - 0.25) }}"
-          - condition: template
-            value_template: "{{ (aktuelle_solltemp + 0.5) <= max_solltemp }}"
-        sequence:
-          - service: climate.set_temperature
-            target:
-              entity_id: '{{ climate_ent }}'
-            data:
-              temperature: "{{ (aktuelle_solltemp + 0.5) | round(1) }}"
-              hvac_mode: heat
-      - conditions:
-          - condition: template
-            value_template: "{{ ist_temp > (wunsch_temp + 0.25) }}"
+            value_template: "{{ ist_temp >= (wunsch_temp + 0.25) }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
@@ -108,7 +121,9 @@ action:
               entity_id: '{{ climate_ent }}'
             data:
               fan_mode: Low
+              
     default:
+      # Alle anderen Zustände (Heizen oder Halten) greifen hier
       - service: climate.set_hvac_mode
         target:
           entity_id: '{{ climate_ent }}'
