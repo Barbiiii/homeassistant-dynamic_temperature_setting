@@ -35,9 +35,7 @@ trigger:
   - platform: state
     entity_id: !input wunsch_temp_entity
 
-# NEUE KORRIGIERTE BEDINGUNG
 condition:
-  # Prüfen, ob eine Entität ausgewählt wurde UND ob diese 'off' ist
   - condition: template
     value_template: >
       {% if is_state('!input window_sensor_entity', 'off') %}
