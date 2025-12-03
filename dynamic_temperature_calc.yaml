@@ -88,6 +88,7 @@ action:
             {{ raw_delta | round(1) }}
 
         {# Fall 3: Halten/Abkühlen im Nahbereich (Negatives Delta, aber Ist < Wunsch + 0.5) -> Limit auf min. -1.0 #}
+        {# Dieser Block wird nur relevant, wenn Ist < Wunsch. Sobald Ist >= Wunsch, greift die neue Haltezone oder der Lüftermodus. #}
         {% elif raw_delta < 0 and ist_temp < (wunsch_temp + 0.5) %}
           {{ [raw_delta, -1.0] | max | round(1) }}
           
@@ -122,8 +123,20 @@ action:
             data:
               fan_mode: Low
               
+      # NEUE ZONE: DEAD-BAND/HALTEZONE (Wunsch <= Ist < Wunsch + 0.25)
+      # In dieser Zone soll die Solltemperatur NICHT verändert werden (z.B. bei 25.5 °C bleiben)
+      - conditions:
+          - condition: template
+            value_template: "{{ ist_temp >= wunsch_temp }}"
+          - condition: template
+            value_template: "{{ ist_temp < (wunsch_temp + 0.25) }}"
+        sequence: 
+          # Leere Sequenz: Automatisierung wird hier beendet, ohne Aktionen
+          # Der Default-Block wird NICHT erreicht, Solltemp bleibt auf dem alten Wert
+          []
+              
     default:
-      # Alle anderen Zustände (Heizen oder Halten) greifen hier
+      # Alle HEIZ-Fälle und der HALTEN/Abkühl-Fall greifen hier
       - service: climate.set_hvac_mode
         target:
           entity_id: '{{ climate_ent }}'
