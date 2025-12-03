@@ -48,10 +48,9 @@ trigger:
 condition:
   - condition: template
     value_template: >
-      {# Prüft, ob der optionale Sensor nicht existiert ODER 'off' ist. Korrigiert !input Syntax #}
-      {% if is_state(states('input.window_sensor_entity'), 'off') %}
-        True
-      {% elif states('input.window_sensor_entity') == 'null' or states('input.window_sensor_entity') == '' %}
+      {# FIX: Prüft, ob der Sensor existiert ODER geschlossen ist. Nutzt die korrekte !input Syntax im String. #}
+      {% set sensor_id = '!input window_sensor_entity' %}
+      {% if sensor_id == '' or is_state(sensor_id, 'off') %}
         True
       {% else %}
         False
@@ -68,7 +67,7 @@ action:
       # FIX: Wert des Korrekturfaktors als einfache Variable zuweisen
       faktor_value: !input korrektur_faktor 
       
-      # Abrufen der Ist- und Wunschtemperatur (FIX: Hier die Variable verwenden, nicht !input)
+      # Abrufen der Ist- und Wunschtemperatur
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       
