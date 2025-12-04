@@ -103,31 +103,34 @@ action:
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       temp_diff: "{{ wunsch_temp - ist_temp }}"
+      max_solltemp: 30.0
       fan_mode_decreased: "{{ states(fan_decreased_ent) | string('Standard') }}"
       is_aggressive_heating: >
        {{ ist_temp > (wunsch_temp - 0.5) and ist_temp < (wunsch_temp + 0.25) }}
-      max_solltemp: 30.0
+        max_solltemp: 30.0
       faktor: >
-       {% set faktor = faktor_value | float(1.0) %}
+       {% set base_faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
-         {set faktor = faktor + 0.5}
+         {{ (base_faktor + 0.5) | round(1) }}
+       {% else %}
+         {{ base_faktor | round(1) }}
        {% endif %}
-       {{ faktor | round(1) }}
       neue_solltemp: >
        {% set temp_mal_zwei = (wunsch_temp + temp_diff) * 2 %}
        {% set aufgerundet = temp_mal_zwei | round(0, 'ceil') %}
        {% set gerundet_final = aufgerundet / 2 %}
-       {{ ([max_solltemp, gerundet_final] | min | round(1)) + faktor }}
+       {{ ([max_solltemp, gerundet_final] | min | round(1)) + faktor | float(0) }}
       fan_to_use: >
         {% if fan_mode_decreased == "Standard" %}
-        {% if is_aggressive_heating %}
-          {{ fan_increased }}
-        {% else %}
-          {{ fan_standard }}
-        {% endif %}
+          {% if is_aggressive_heating %}
+            {{ fan_increased }}
+          {% else %}
+            {{ fan_standard }}
+          {% endif %}
         {% else %}
           {{ fan_mode_decreased }}
         {% endif %}
+
        
   - choose:
       - conditions:
