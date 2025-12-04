@@ -102,7 +102,7 @@ action:
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
       temp_diff: "{{ wunsch_temp - ist_temp }}"
       max_solltemp: 30.0
-      fan_mode_decreased: "{{ states(fan_decreased_ent) | string(Standard') }}"
+      fan_mode_decreased: "{{ states(fan_decreased_ent) | string('Standard') }}"
       is_aggressive_heating: >
        {{ ist_temp > (wunsch_temp - 0.5) and ist_temp < (wunsch_temp + 0.25) }}
         max_solltemp: 30.0
