@@ -117,11 +117,11 @@ action:
       faktor: >
        {% set faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
-       {% set faktor = faktor + 0.5 %}
+       {% set faktor = faktor + 1 %}
        {% endif %}
        {{ faktor | round(1) }}
       neue_solltemp: >
-       {% set temp_mal_zwei = wunsch_temp * 2 %}
+       {% set temp_mal_zwei = (wunsch_temp + temp_diff) * 2 %}
        {% set aufgerundet = temp_mal_zwei | round(0, 'ceil') %}
        {% set gerundet_final = aufgerundet / 2 %}
        {{ ([max_solltemp, gerundet_final] | min | round(1)) + faktor }}
@@ -130,7 +130,7 @@ action:
 
       - conditions:
           - condition: template
-            value_template: "{{ ist_temp | float(0) > (wunsch_temp | float(0) + 0.25) }}"
+            value_template: "{{ ist_temp > (wunsch_temp + 0.25) }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
