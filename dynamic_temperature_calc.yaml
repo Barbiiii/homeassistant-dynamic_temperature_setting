@@ -62,12 +62,6 @@ blueprint:
             - Mid
             - MidHigh
             - High
-    fan_mode_decreased_entity:
-      name: Auswahl für reduzierte Lüfterstärke beim Heizen
-      description: Auswahlfeld für eine reduzierte Lüfterstärke, die zeitgesteuert gesetzt werden kann
-      selector:
-        entity:
-          domain: input_select
     fan_mode_vent:
       name: Lüfterstärke bei Lüftung
       description: Lüfterstufe, die verwendet wird, wenn die Klimaanlage auf Nur Lüftung wechselt, um den Raum abzukühlen.
@@ -81,6 +75,13 @@ blueprint:
             - Mid
             - MidHigh
             - High
+    fan_mode_decreased_entity:
+      name: Auswahl für gesonderte Lüfterstärke beim Heizen
+      description: Auswahl für eine grdonfertr Lüfterstärke, die zeitgesteuert gesetzt werden kann.
+      selector:
+        entity:
+          domain: input_select
+    
 trigger:
   - platform: state
     entity_id: !input temp_sensor_entity
@@ -101,7 +102,7 @@ action:
       faktor_value: !input korrektur_faktor
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
-      temp_diff: "{{ wunsch_temp - ist_temp }}"
+      temp_diff: "{{ (wunsch_temp - ist_temp) | abs }}"
       max_solltemp: 30.0
       fan_mode_decreased: "{{ states(fan_decreased_ent) | string() }}"
       is_aggressive_heating: >
