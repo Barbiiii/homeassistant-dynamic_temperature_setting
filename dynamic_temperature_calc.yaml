@@ -71,9 +71,9 @@ blueprint:
           options:
             - Auto
             - Low
-            - LowMid
+            - LoMid
             - Mid
-            - MidHigh
+            - MidHi
             - High
     fan_mode_decreased_entity:
       name: Auswahl für abweichende Lüfterstärke beim Heizen
