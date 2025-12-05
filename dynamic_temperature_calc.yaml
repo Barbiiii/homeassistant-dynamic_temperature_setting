@@ -52,7 +52,7 @@ blueprint:
             - High
     fan_mode_heat_increased:
       name: Erhöhte Lüfterstärke Heizen
-      description: Wenn dieser Wert gesetzt wird, wird er genutzt, wenn die Solltemperatur erhöht wird, um die automatische Kühlfunktion der Klimaanlage zu vermeiden.
+      description: Wenn dieser Wert gesetzt ist, wird er im Bereich -0,5 °C und + 0,25 °C um die Wunschtemperatur eingesetzt.
       default: null
       selector:
         select:
@@ -76,8 +76,8 @@ blueprint:
             - MidHigh
             - High
     fan_mode_decreased_entity:
-      name: Auswahl für gesonderte Lüfterstärke beim Heizen
-      description: Auswahl für eine grdonfertr Lüfterstärke, die zeitgesteuert gesetzt werden kann.
+      name: Auswahl für abweichende Lüfterstärke beim Heizen
+      description: Auswahl für eine abweichende, die zeitgesteuert gesetzt werden kann und die Effizienz zerstört.
       selector:
         entity:
           domain: input_select
@@ -111,7 +111,7 @@ action:
       faktor: >
        {% set base_faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
-         {{ (base_faktor + 0.5) | round(1) }}
+         {{ (base_faktor + 0.75) | round(1) }}
        {% else %}
          {{ base_faktor | round(1) }}
        {% endif %}
