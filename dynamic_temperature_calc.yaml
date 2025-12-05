@@ -120,7 +120,7 @@ action:
        {% set gerundet_final = aufgerundet / 2 %}
        {{ ([max_solltemp, gerundet_final] | min | round(1)) + faktor | float(0) }}
       fan_to_use: >
-       {{ fan_mode_decreased if fan_mode_decreased != Standard 
+       {{ fan_mode_decreased if fan_mode_decreased != 'Standard'
        else (fan_increased if is_aggressive_heating else fan_standard) }}
 
   - choose:
