@@ -46,9 +46,9 @@ blueprint:
         select:
           options:
             - Low
-            - LowMid
+            - LoMid
             - Mid
-            - MidHigh
+            - MiHigh
             - High
     fan_mode_heat_increased:
       name: Erhöhte Lüfterstärke Heizen
@@ -58,9 +58,9 @@ blueprint:
         select:
           options:
             - Low
-            - LowMid
+            - LoMid
             - Mid
-            - MidHigh
+            - MiHigh
             - High
     fan_mode_vent:
       name: Lüfterstärke bei Lüftung
@@ -73,7 +73,7 @@ blueprint:
             - Low
             - LoMid
             - Mid
-            - MidHi
+            - MiHigh
             - High
     fan_mode_decreased_entity:
       name: Auswahl für abweichende Lüfterstärke beim Heizen
