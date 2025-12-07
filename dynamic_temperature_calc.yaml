@@ -110,7 +110,7 @@ action:
       faktor: >
        {% set base_faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
-         {{ (base_faktor + 0.75) | round(1) }}
+         {{ (base_faktor + 1.5) | round(1) }}
        {% else %}
          {{ base_faktor | round(1) }}
        {% endif %}
@@ -138,11 +138,6 @@ action:
               entity_id: '{{ climate_ent }}'
             data:
               fan_mode: '{{ fan_vent }}'
-          - service: climate.set_temperature
-            target:
-              entity_id: '{{ climate_ent }}'
-            data:
-              temperature: "{{ neue_solltemp }}"
     default:
         - service: climate.set_hvac_mode
           target:
