@@ -129,7 +129,7 @@ action:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ ist_temp > (wunsch_temp + 0.25) }}"
+            value_template: "{{ ist_temp > (wunsch_temp) }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
