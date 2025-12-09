@@ -109,7 +109,7 @@ action:
       max_solltemp: 30.0
       fan_mode_decreased: "{{ states(fan_decreased_ent) | string() }}"
       is_aggressive_heating: >
-       {{ ist_temp > (wunsch_temp - 1.5) and ist_temp <= (wunsch_temp + 0.25) }}
+       {{ ist_temp > (wunsch_temp - 1.5) and ist_temp <= (wunsch_temp) }}
       faktor: >
        {% set base_faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
