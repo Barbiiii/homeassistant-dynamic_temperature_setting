@@ -109,7 +109,7 @@ action:
       max_solltemp: 30.0
       fan_mode_decreased: "{{ states(fan_decreased_ent) | string() }}"
       is_aggressive_heating: >
-       {{ ist_temp > (wunsch_temp - 1.5) and ist_temp <= (wunsch_temp) }}
+       {{ ist_temp > (wunsch_temp - 1) and ist_temp <= (wunsch_temp + 0.25) }}
       faktor: >
        {% set base_faktor = faktor_value | float(1.0) %}
        {% if is_aggressive_heating %}
@@ -129,7 +129,7 @@ action:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ ist_temp > (wunsch_temp + 0.5) }}"
+            value_template: "{{ ist_temp > (wunsch_temp + 0.25) }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
