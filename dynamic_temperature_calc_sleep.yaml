@@ -105,7 +105,7 @@ action:
       faktor_value: !input korrektur_faktor
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
-      temp_diff: "{{ (wunsch_temp - ist_temp) | abs }}"
+      temp_diff: "{{ (wunsch_temp - ist_temp) }}"
       max_solltemp: 30.0
       fan_mode_decreased: "{{ states(fan_decreased_ent) | string() }}"
       is_aggressive_heating: >
