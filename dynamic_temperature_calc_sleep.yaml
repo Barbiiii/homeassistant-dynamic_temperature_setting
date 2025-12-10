@@ -118,7 +118,7 @@ action:
          {{ base_faktor | round(1) }}
        {% endif %}
       neue_solltemp: >
-       {% set temp_mal_zwei = (wunsch_temp + temp_diff) * 2 %}
+       {% set temp_mal_zwei = (wunsch_temp + faktor) * 2 %}
        {% set aufgerundet = temp_mal_zwei | round(0, 'ceil') %}
        {% set gerundet_final = aufgerundet / 2 %}
        {{ ([max_solltemp, gerundet_final] | min | round(1)) + faktor | float(0) }}
@@ -146,7 +146,7 @@ action:
           target:
             entity_id: '{{ climate_ent }}'
           data:
-              hvac_mode: heat_cool
+              hvac_mode: heat
         - service: climate.set_temperature
           target:
             entity_id: '{{ climate_ent }}'
