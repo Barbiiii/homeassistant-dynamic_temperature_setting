@@ -146,7 +146,7 @@ action:
           target:
             entity_id: '{{ climate_ent }}'
           data:
-              hvac_mode: heat
+              hvac_mode: heat_cool
         - service: climate.set_temperature
           target:
             entity_id: '{{ climate_ent }}'
