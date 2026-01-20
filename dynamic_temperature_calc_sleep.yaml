@@ -1,5 +1,5 @@
 blueprint:
-  name: Klimaanlage - Föhn Steuerung Final FIX
+  name: Klimaanlage - Föhn Steuerung
   description: Dynamische Lüftersteuerung und fixer Temperatur-Offset.
   domain: automation
   input:
@@ -43,13 +43,6 @@ trigger:
 
 action:
   # 1. Abbruch wenn Fenster offen (falls eins ausgewählt wurde)
-  - if:
-      - condition: template
-        value_template: >
-          {% set window = '!input window_sensor_entity' %}
-          {{ is_state(window, 'on') if window != '[]' else false }}
-    then:
-      - stop: "Fenster ist offen."
 
   # 2. Temperatur setzen (Offset wird direkt hier berechnet)
   - service: climate.set_temperature
