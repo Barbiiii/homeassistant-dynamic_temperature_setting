@@ -73,7 +73,7 @@ action:
         {% if ist < wunsch %}
           High
         {% elif ist >= wunsch and ist <= (wunsch + 0.5) %}
-          MidHigh
+          HighMid
         {% else %}
           Mid
         {% endif %}
