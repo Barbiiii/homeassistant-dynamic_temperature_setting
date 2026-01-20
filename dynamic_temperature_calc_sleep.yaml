@@ -72,7 +72,7 @@ action:
         {% set wunsch = states(wunsch_temp_id) | float(0) %}
         {% if ist < wunsch %}
           HighMid
-        {% elif ist >= wunsch and ist <= (wunsch + 0.5) %}
+        {% ist <= (wunsch + 0.5) %}
           Mid
         {% else %}
           LowMid
