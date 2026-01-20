@@ -28,12 +28,6 @@ blueprint:
           step: 0.5
           unit_of_measurement: "°C"
           mode: box
-    window_sensor_entity:
-      name: Fenstersensor (Optional)
-      selector:
-        entity:
-          domain: binary_sensor
-      default: []
 
 trigger:
   - platform: state
