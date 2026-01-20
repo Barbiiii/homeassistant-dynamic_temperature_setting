@@ -1,25 +1,25 @@
 blueprint:
-  name: Klimaanlage - Föhn-Steuerung (Fixed)
-  description: Fixer Offset zur Wunschtemp und 3-stufige Föhn-Logik.
+  name: Klimaanlage - Föhn Steuerung Final FIX
+  description: Dynamische Lüftersteuerung und fixer Temperatur-Offset.
   domain: automation
   input:
     climate_entity:
-      name: Klimaanlage/Heizung
+      name: Klimaanlage
       selector:
         entity:
           domain: climate
     temp_sensor_entity:
-      name: Temperatursensor (Ist-Temperatur)
+      name: Ist-Temperatur Sensor
       selector:
         entity:
           domain: sensor
     wunsch_temp_entity:
-      name: Wunschtemperatur (Input-Helper)
+      name: Wunschtemperatur (Helper)
       selector:
         entity:
           domain: input_number
     korrektur_faktor:
-      name: Korrekturfaktor (Offset)
+      name: Korrekturfaktor
       default: 1.5
       selector:
         number:
@@ -29,7 +29,7 @@ blueprint:
           unit_of_measurement: "°C"
           mode: box
     window_sensor_entity:
-      name: Fenster-/Türsensor (Optional)
+      name: Fenstersensor (Optional)
       selector:
         entity:
           domain: binary_sensor
@@ -42,50 +42,38 @@ trigger:
     entity_id: !input wunsch_temp_entity
 
 action:
-  - variables:
-      # Hier werden die Inputs als interne Variablen deklariert
-      climate_ent: !input climate_entity
-      temp_sensor_id: !input temp_sensor_entity
-      wunsch_temp_id: !input wunsch_temp_entity
-      window_sensor_id: !input window_sensor_entity
-      offset: !input korrektur_faktor
-      
-      # Berechnung der Werte
-      wunsch_temp: "{{ states(wunsch_temp_id) | float(0) }}"
-      ist_temp: "{{ states(temp_sensor_id) | float(0) }}"
-      berechnete_solltemp: "{{ (wunsch_temp + offset) | round(1) }}"
-      
-      # Föhn-Logik (Stufe 4, 3, 2)
-      fan_to_use: >
-        {% if ist_temp < wunsch_temp %}
+  # 1. Abbruch wenn Fenster offen (falls eins ausgewählt wurde)
+  - if:
+      - condition: template
+        value_template: >
+          {% set window = '!input window_sensor_entity' %}
+          {{ is_state(window, 'on') if window != '[]' else false }}
+    then:
+      - stop: "Fenster ist offen."
+
+  # 2. Temperatur setzen (Offset wird direkt hier berechnet)
+  - service: climate.set_temperature
+    target:
+      entity_id: !input climate_entity
+    data:
+      hvac_mode: heat
+      temperature: >
+        {% set wunsch = states('!input wunsch_temp_entity') | float(21) %}
+        {% set offset = !input korrektur_faktor %}
+        {{ (wunsch + offset) | round(1) }}
+
+  # 3. Lüfterstufe setzen (Logik direkt im Service)
+  - service: climate.set_fan_mode
+    target:
+      entity_id: !input climate_entity
+    data:
+      fan_mode: >
+        {% set ist = states('!input temp_sensor_entity') | float(0) %}
+        {% set wunsch = states('!input wunsch_temp_entity') | float(0) %}
+        {% if ist < wunsch %}
           High
-        {% elif ist_temp >= wunsch_temp and ist_temp <= (wunsch_temp + 0.5) %}
+        {% elif ist >= wunsch and ist <= (wunsch + 0.5) %}
           MidHigh
         {% else %}
           Mid
         {% endif %}
-
-  # Prüfung: Fenster offen? (Nutzt jetzt die Variable window_sensor_id)
-  - if:
-      - condition: template
-        value_template: "{{ is_state(window_sensor_id, 'on') if window_sensor_id != [] else false }}"
-    then:
-      - stop: "Fenster offen."
-
-  # Prüfung: Sind Zahlen vorhanden?
-  - condition: template
-    value_template: "{{ states(wunsch_temp_id) | is_number and states(temp_sensor_id) | is_number }}"
-
-  # Ausführung
-  - service: climate.set_temperature
-    target:
-      entity_id: "{{ climate_ent }}"
-    data:
-      temperature: "{{ berechnete_solltemp }}"
-      hvac_mode: heat
-
-  - service: climate.set_fan_mode
-    target:
-      entity_id: "{{ climate_ent }}"
-    data:
-      fan_mode: "{{ fan_to_use }}"
