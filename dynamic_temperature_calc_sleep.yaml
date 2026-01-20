@@ -1,6 +1,6 @@
 blueprint:
-  name: Klimaanlage - Dynamischer Föhn & Variabler Offset
-  description: Setzt Solltemp auf Wunschtemp + Korrekturfaktor und regelt den Föhn stufenweise.
+  name: Klimaanlage - Föhn-Steuerung Final (Fixed)
+  description: Fixer Offset zur Wunschtemp und 3-stufige Föhn-Logik.
   domain: automation
   input:
     climate_entity:
@@ -20,21 +20,14 @@ blueprint:
           domain: input_number
     korrektur_faktor:
       name: Korrekturfaktor (Offset)
-      description: Dieser Wert wird auf die Wunschtemperatur addiert, um die Solltemperatur der Klima zu setzen.
       default: 1.5
       selector:
         number:
           min: 0.0
-          max: 5.0
+          max: 10.0
           step: 0.5
           unit_of_measurement: "°C"
           mode: box
-    window_sensor_entity:
-      name: Fenster-/Türsensor (Optional)
-      selector:
-        entity:
-          domain: binary_sensor
-      default: []
 
 trigger:
   - platform: state
@@ -43,22 +36,19 @@ trigger:
     entity_id: !input wunsch_temp_entity
 
 action:
-  - if:
-      - condition: template
-        value_template: "{{ is_state(window_sensor_entity, 'on') if window_sensor_entity != [] else false }}"
-    then:
-      - stop: "Fenster offen."
-
   - variables:
+      # Hier binden wir die Inputs korrekt an die Variablen
+      wunsch_temp_id: !input wunsch_temp_entity
+      temp_sensor_id: !input temp_sensor_entity
       climate_ent: !input climate_entity
-      wunsch_temp: "{{ states(wunsch_temp_entity) | float(0) }}"
-      ist_temp: "{{ states(temp_sensor_entity) | float(0) }}"
       offset: !input korrektur_faktor
       
-      # Solltemperatur = Wunsch + variabler Korrekturfaktor
+      # Jetzt berechnen wir die Werte basierend auf den IDs
+      wunsch_temp: "{{ states(wunsch_temp_id) | float(0) }}"
+      ist_temp: "{{ states(temp_sensor_id) | float(0) }}"
+      
       berechnete_solltemp: "{{ (wunsch_temp + offset) | round(1) }}"
       
-      # Föhn-Logik nach deinen Vorgaben
       fan_to_use: >
         {% if ist_temp < wunsch_temp %}
           High
@@ -67,6 +57,10 @@ action:
         {% else %}
           Mid
         {% endif %}
+
+  # Erst prüfen, ob Werte gültig sind, dann ausführen
+  - condition: template
+    value_template: "{{ states(wunsch_temp_id) | is_number and states(temp_sensor_id) | is_number }}"
 
   - service: climate.set_temperature
     target:
