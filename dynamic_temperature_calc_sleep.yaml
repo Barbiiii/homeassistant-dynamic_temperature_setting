@@ -1,5 +1,5 @@
 blueprint:
-  name: Klimaanlage - Föhn-Steuerung Final (Fixed)
+  name: Klimaanlage - Föhn-Steuerung (Final & Fixed)
   description: Fixer Offset zur Wunschtemp und 3-stufige Föhn-Logik.
   domain: automation
   input:
@@ -28,6 +28,12 @@ blueprint:
           step: 0.5
           unit_of_measurement: "°C"
           mode: box
+    window_sensor_entity:
+      name: Fenster-/Türsensor (Optional)
+      selector:
+        entity:
+          domain: binary_sensor
+      default: []
 
 trigger:
   - platform: state
@@ -37,18 +43,21 @@ trigger:
 
 action:
   - variables:
-      # Hier binden wir die Inputs korrekt an die Variablen
-      wunsch_temp_id: !input wunsch_temp_entity
-      temp_sensor_id: !input temp_sensor_entity
+      # Alle Inputs als Variablen definieren, damit sie im Code verfügbar sind
       climate_ent: !input climate_entity
+      temp_sensor_id: !input temp_sensor_entity
+      wunsch_temp_id: !input wunsch_temp_entity
+      window_sensor_id: !input window_sensor_entity
       offset: !input korrektur_faktor
       
-      # Jetzt berechnen wir die Werte basierend auf den IDs
+      # Werte auslesen
       wunsch_temp: "{{ states(wunsch_temp_id) | float(0) }}"
       ist_temp: "{{ states(temp_sensor_id) | float(0) }}"
       
+      # Solltemp berechnen
       berechnete_solltemp: "{{ (wunsch_temp + offset) | round(1) }}"
       
+      # Föhn-Logik
       fan_to_use: >
         {% if ist_temp < wunsch_temp %}
           High
@@ -58,10 +67,18 @@ action:
           Mid
         {% endif %}
 
-  # Erst prüfen, ob Werte gültig sind, dann ausführen
+  # 1. Prüfung: Fenster offen?
+  - if:
+      - condition: template
+        value_template: "{{ is_state(window_sensor_id, 'on') if window_sensor_id != [] else false }}"
+    then:
+      - stop: "Fenster offen, Automatisierung gestoppt."
+
+  # 2. Prüfung: Sind die Temperaturen gültige Zahlen?
   - condition: template
     value_template: "{{ states(wunsch_temp_id) | is_number and states(temp_sensor_id) | is_number }}"
 
+  # 3. Klima einstellen
   - service: climate.set_temperature
     target:
       entity_id: "{{ climate_ent }}"
