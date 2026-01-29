@@ -1,0 +1,69 @@
+blueprint:
+  name: Heizung - Dynamische Temperaturanpassung (Minimal)
+  description: Passt die Soll-Temperatur eines Heizkörpers dynamisch basierend auf einem externen Temperatursensor an.
+  domain: automation
+  input:
+    climate_entity:
+      name: Heizungsthermostat
+      selector:
+        entity:
+          domain: climate
+    temp_sensor_entity:
+      name: Externer Temperatursensor (Ist-Temperatur)
+      selector:
+        entity:
+          domain: sensor
+    wunsch_temp_entity:
+      name: Wunschtemperatur (Input-Helper)
+      selector:
+        entity:
+          domain: input_number
+    window_sensor_entity:
+      name: Fenster-/Türsensor (Optional)
+      selector:
+        entity:
+          domain: binary_sensor
+      default: []
+
+trigger:
+  - platform: state
+    entity_id: !input temp_sensor_entity
+  - platform: state
+    entity_id: !input wunsch_temp_entity
+
+action:
+  - if:
+      - condition: template
+        value_template: "{{ window_sensor_entity != [] and is_state(window_sensor_entity, 'on') }}"
+    then:
+      - stop: "Fenster offen"
+
+  - variables:
+      climate_ent: !input climate_entity
+      temp_sensor_ent: !input temp_sensor_entity
+      wunsch_temp_ent: !input wunsch_temp_entity
+      wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
+      ist_temp: "{{ states(temp_sensor_ent) | float(0) }}"
+      temp_diff: "{{ (wunsch_temp - ist_temp) }}"
+      max_solltemp: 30.0
+      min_solltemp: 12.0
+      neue_solltemp: >
+        {% set berechnet = wunsch_temp + temp_diff %}
+        {{ [ [berechnet, max_solltemp] | min, min_solltemp ] | max | round(1) }}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ ist_temp > (wunsch_temp + 0.5) }}"
+        sequence:
+          - service: climate.set_temperature
+            target:
+              entity_id: "{{ climate_ent }}"
+            data:
+              temperature: "{{ wunsch_temp - 2 }}"
+    default:
+      - service: climate.set_temperature
+        target:
+          entity_id: "{{ climate_ent }}"
+        data:
+          temperature: "{{ neue_solltemp }}"
