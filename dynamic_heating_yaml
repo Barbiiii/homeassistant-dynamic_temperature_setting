@@ -29,6 +29,7 @@ blueprint:
         entity:
           domain: binary_sensor
       default: none
+      
 
 trigger:
   - platform: state
