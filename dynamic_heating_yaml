@@ -36,9 +36,6 @@ trigger:
     entity_id: !input temp_sensor_entity
   - platform: state
     entity_id: !input wunsch_temp_entity
-  - platform: state
-    entity_id: !input climate_entity
-    attribute: current_temperature
 
 action:
   - if:
