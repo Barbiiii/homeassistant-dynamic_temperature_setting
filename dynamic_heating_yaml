@@ -1,6 +1,6 @@
 blueprint:
-  name: Heizung - Offset-Anpassung über externen Sensor
-  description: Korrigiert den Offset eines Thermostats basierend auf einem externen Temperatursensor.
+  name: Heizung - Wunschtemperatur & Offset-Abgleich
+  description: Setzt die Soll-Temperatur auf die Wunschtemperatur und korrigiert den Offset basierend auf einem externen Sensor.
   domain: automation
   input:
     climate_entity:
@@ -10,7 +10,6 @@ blueprint:
           domain: climate
     offset_entity:
       name: Offset-Entität (Number)
-      description: Die Entität für den Temperaturoffset (z.B. number.thermostat_temperaturoffset).
       selector:
         entity:
           domain: number
@@ -19,6 +18,11 @@ blueprint:
       selector:
         entity:
           domain: sensor
+    wunsch_temp_entity:
+      name: Wunschtemperatur (Input-Helper)
+      selector:
+        entity:
+          domain: input_number
     window_sensor_entity:
       name: Fenster-/Türsensor (Optional)
       selector:
@@ -30,32 +34,12 @@ trigger:
   - platform: state
     entity_id: !input temp_sensor_entity
   - platform: state
+    entity_id: !input wunsch_temp_entity
+  - platform: state
     entity_id: !input climate_entity
     attribute: current_temperature
 
 action:
   - if:
       - condition: template
-        value_template: "{{ window_sensor_entity != [] and is_state(window_sensor_entity, 'on') }}"
-    then:
-      - stop: "Fenster offen"
-
-  - variables:
-      offset_ent: !input offset_entity
-      climate_ent: !input climate_entity
-      temp_sensor_ent: !input temp_sensor_entity
-      
-      ist_extern: "{{ states(temp_sensor_ent) | float(0) }}"
-      ist_thermostat: "{{ state_attr(climate_ent, 'current_temperature') | float(0) }}"
-      
-      neuer_offset: "{{ (ist_extern - ist_thermostat) | round(1) }}"
-
-  - if:
-      - condition: template
-        value_template: "{{ states(offset_ent) | float(0) != neuer_offset }}"
-    then:
-      - service: number.set_value
-        target:
-          entity_id: "{{ offset_ent }}"
-        data:
-          value: "{{ neuer_offset }}"
+        value_template: "{{ window_sensor_entity != [] and is_state(window
