@@ -1,5 +1,5 @@
 blueprint:
-  name: Heizung - Negativer Turbo Offset (Ganzzahl-Fix)
+  name: Heizung - Negativer Turbo Offset (Ganzzahl-Final)
   description: Nutzt Ganzzahlen für den Offset und erzwingt negative Werte bei Heizbedarf.
   domain: automation
   input:
@@ -40,7 +40,7 @@ mode: restart
 
 action:
   - variables:
-      # Hier weisen wir die Inputs Variablen zu, damit wir sie im Template OHNE '!' nutzen können
+      # Inputs werden Variablen zugewiesen, um '!' in Templates zu vermeiden
       climate_ent: !input climate_entity
       offset_ent: !input offset_entity
       temp_sensor_ent: !input temp_sensor_entity
@@ -52,14 +52,41 @@ action:
       aktueller_offset: "{{ states(offset_ent) | float(0.0) }}"
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(20.0) }}"
       
-      # Berechnung des Rohwerts und der Differenzen
       ist_intern_roh: "{{ ist_intern_anzeige - aktueller_offset }}"
       wunsch_diff: "{{ (wunsch_temp - ist_extern) | float }}"
       
       # Die Formel: (Messfehler - Wunsch-Differenz)
-      # Wir erzwingen mindestens -1 bei Heizbedarf
       theo_offset: "{{ (ist_extern - ist_intern_roh) - wunsch_diff }}"
       neuer_offset: >
         {% if wunsch_diff > 0.1 %}
           {{ [ (theo_offset | round(0, method='floor') | int), -1 ] | min }}
         {% else %}
+          0
+        {% endif %}
+
+  # 1. Fenster-Check (Nutzt die Variable statt !input)
+  - if:
+      - condition: template
+        value_template: >
+          {{ window_sensor_ent != 'none' and is_state(window_sensor_ent, 'on') }}
+    then:
+      - stop: "Fenster offen."
+
+  # 2. Offset setzen (Ganzzahl-Logik & Hysterese 1)
+  - if:
+      - condition: template
+        value_template: "{{ (aktueller_offset | int - neuer_offset | int) | abs >= 1 }}"
+    then:
+      - service: number.set_value
+        target:
+          entity_id: "{{ offset_ent }}"
+        data:
+          value: "{{ neuer_offset | clamp(-10, 0) | int }}"
+      - delay: "00:00:05"
+
+  # 3. Wunschtemperatur am Thermostat setzen
+  - service: climate.set_temperature
+    target:
+      entity_id: "{{ climate_ent }}"
+    data:
+      temperature: "{{ wunsch_temp }}"
