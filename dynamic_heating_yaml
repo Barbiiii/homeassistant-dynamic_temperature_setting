@@ -1,6 +1,6 @@
 blueprint:
-  name: Heizung - Negativer Turbo Offset (Ganzzahl-Final)
-  description: Nutzt Ganzzahlen für den Offset und erzwingt negative Werte bei Heizbedarf.
+  name: Heizung - Aggressiv Ganzzahl Final
+  description: Erzwingt negative Ganzzahl-Offsets bei Heizbedarf.
   domain: automation
   input:
     climate_entity:
@@ -40,12 +40,12 @@ mode: restart
 
 action:
   - variables:
-      # Inputs werden Variablen zugewiesen, um '!' in Templates zu vermeiden
+      # Wir mappen die Inputs hier EINMALIG auf Variablen
       climate_ent: !input climate_entity
       offset_ent: !input offset_entity
       temp_sensor_ent: !input temp_sensor_entity
       wunsch_temp_ent: !input wunsch_temp_entity
-      window_sensor_ent: !input window_sensor_entity
+      win_sensor: !input window_sensor_entity
       
       ist_extern: "{{ states(temp_sensor_ent) | float(20.0) }}"
       ist_intern_anzeige: "{{ state_attr(climate_ent, 'current_temperature') | float(20.0) }}"
@@ -53,26 +53,20 @@ action:
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(20.0) }}"
       
       ist_intern_roh: "{{ ist_intern_anzeige - aktueller_offset }}"
-      wunsch_diff: "{{ (wunsch_temp - ist_extern) | float }}"
+      wunsch_diff: "{{ wunsch_temp - ist_extern }}"
       
-      # Die Formel: (Messfehler - Wunsch-Differenz)
-      theo_offset: "{{ (ist_extern - ist_intern_roh) - wunsch_diff }}"
-      neuer_offset: >
-        {% if wunsch_diff > 0.1 %}
-          {{ [ (theo_offset | round(0, method='floor') | int), -1 ] | min }}
-        {% else %}
-          0
-        {% endif %}
+      # Formel ohne komplexe If-Blöcke (Inline-Logik)
+      berechneter_offset: "{{ ( (ist_extern - ist_intern_roh) - wunsch_diff ) | round(0, 'floor') | int }}"
+      neuer_offset: "{{ [berechneter_offset, -1] | min if wunsch_diff > 0.1 else 0 }}"
 
-  # 1. Fenster-Check (Nutzt die Variable statt !input)
+  # 1. Fenster-Check (KEIN '!' mehr im Template!)
   - if:
       - condition: template
-        value_template: >
-          {{ window_sensor_ent != 'none' and is_state(window_sensor_ent, 'on') }}
+        value_template: "{{ win_sensor != 'none' and is_state(win_sensor, 'on') }}"
     then:
-      - stop: "Fenster offen."
+      - stop: "Fenster offen"
 
-  # 2. Offset setzen (Ganzzahl-Logik & Hysterese 1)
+  # 2. Offset setzen
   - if:
       - condition: template
         value_template: "{{ (aktueller_offset | int - neuer_offset | int) | abs >= 1 }}"
@@ -84,7 +78,7 @@ action:
           value: "{{ neuer_offset | clamp(-10, 0) | int }}"
       - delay: "00:00:05"
 
-  # 3. Wunschtemperatur am Thermostat setzen
+  # 3. Synchronisieren
   - service: climate.set_temperature
     target:
       entity_id: "{{ climate_ent }}"
