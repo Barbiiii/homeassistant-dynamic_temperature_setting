@@ -1,6 +1,6 @@
 blueprint:
-  name: Heizung - Wunschtemperatur & Offset-Abgleich
-  description: Setzt die Soll-Temperatur auf die Wunschtemperatur und korrigiert den Offset basierend auf einem externen Sensor.
+  name: Heizung - Korrekter Offset-Abgleich
+  description: Passt den Hardware-Offset an und setzt die Wunschtemperatur.
   domain: automation
   input:
     climate_entity:
@@ -14,62 +14,68 @@ blueprint:
         entity:
           domain: number
     temp_sensor_entity:
-      name: Externer Temperatursensor (Ist-Temperatur)
+      name: Externer Temperatursensor
       selector:
         entity:
           domain: sensor
     wunsch_temp_entity:
-      name: Wunschtemperatur (Input-Helper)
+      name: Wunschtemperatur
       selector:
         entity:
           domain: input_number
     window_sensor_entity:
-      name: Fenster-/Türsensor (Optional)
+      name: Fenster-Sensor (Optional)
+      default: none
       selector:
         entity:
           domain: binary_sensor
-      default: none
-      
 
 trigger:
   - platform: state
     entity_id: !input temp_sensor_entity
   - platform: state
     entity_id: !input wunsch_temp_entity
+  - platform: state
+    entity_id: !input climate_entity
+    attribute: current_temperature
 
 action:
+  # 1. Fenster-Check (Stop wenn offen)
   - if:
       - condition: template
         value_template: >
-          {% set window = (window_sensor_entity) %}
-          {{ window != 'none' and is_state(window, 'on') }}
+          {% set win = states(window_sensor_entity) %}
+          {{ win == 'on' }}
     then:
-      - stop: "Fenster offen"
+      - stop: "Fenster ist offen"
 
   - variables:
-      climate_ent: !input climate_entity
       offset_ent: !input offset_entity
-      temp_sensor_ent: !input temp_sensor_entity
-      wunsch_temp_ent: !input wunsch_temp_entity
+      climate_ent: !input climate_entity
+      # Wir berechnen den Offset: (Externer Sensor - Interner Sensor) + aktueller Offset
+      # Das ist nötig, da der interne Sensor sich bereits verändert, wenn ein Offset aktiv ist.
+      ist_extern: "{{ states(temp_sensor_entity) | float(20) }}"
+      ist_intern: "{{ state_attr(climate_ent, 'current_temperature') | float(20) }}"
+      aktueller_offset: "{{ states(offset_ent) | float(0) }}"
       
-      wunsch_temp: "{{ states(wunsch_temp_ent) | float(0) }}"
-      ist_extern: "{{ states(temp_sensor_ent) | float(0) }}"
-      ist_thermostat: "{{ state_attr(climate_ent, 'current_temperature') | float(0) }}"
-      
-      neuer_offset: "{{ (ist_extern - ist_thermostat) | round(1) }}"
+      # Die Formel berechnet, wie weit das Thermostat daneben liegt:
+      neuer_offset: "{{ (aktueller_offset + (ist_extern - ist_intern)) | round(1) }}"
+      wunsch_temp: "{{ states(wunsch_temp_entity) | float(20) }}"
 
-  - service: climate.set_temperature
-    target:
-      entity_id: "{{ climate_ent }}"
-    data:
-      temperature: "{{ wunsch_temp + neuer_offset }}"
-
+  # 2. Offset am Gerät korrigieren (nur wenn Differenz relevant > 0.1)
   - if:
       - condition: template
-        value_template: "{{ states(offset_ent) | float(0) != neuer_offset }}"
+        value_template: "{{ (states(offset_ent) | float(0) - neuer_offset) | abs > 0.1 }}"
     then:
       - service: number.set_value
         target:
-          entity_id: "{{ offset_ent }}"
+          entity_id: !input offset_entity
         data:
           value: "{{ neuer_offset }}"
+
+  # 3. Wunschtemperatur setzen (ganz normal, ohne Offset-Rechnung!)
+  - service: climate.set_temperature
+    target:
+      entity_id: !input climate_entity
+    data:
+      temperature: "{{ wunsch_temp }}"
