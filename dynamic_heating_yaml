@@ -1,42 +1,6 @@
 blueprint:
-  name: Heizung - Aggressiver Offset-Abgleich (Turbo)
-  description: Korrigiert den Offset basierend auf einem externen Sensor UND der Differenz zur Wunschtemperatur, um frühzeitiges Abschalten (Idle) zu verhindern.
-  domain: automation
-  input:
-    climate_entity:
-      name: Heizungsthermostat
-      selector:
-        entity:
-          domain: climate
-    offset_entity:
-      name: Offset-Entität (Number)
-      selector:
-        entity:
-          domain: number
-    temp_sensor_entity:
-      name: Externer Temperatursensor (Ist-Temperatur)
-      selector:
-        entity:
-          domain: sensor
-    wunsch_temp_entity:
-      name: Wunschtemperatur (Input-Helper)
-      selector:
-        entity:
-          domain: input_number
-    window_sensor_entity:
-      name: Fenster-/Türsensor (Optional)
-      default: none
-      selector:
-        entity:
-          domain: binary_sensor
-
-trigger:
-  - platform: state
-    entity_id: !input temp_sensor_entity
-  - platform: state
-    entity_id: !input blueprint:
-  name: Heizung - Aggressiver Offset-Abgleich (Turbo)
-  description: Korrigiert den Offset basierend auf einem externen Sensor UND der Differenz zur Wunschtemperatur, um frühzeitiges Abschalten (Idle) zu verhindern.
+  name: Heizung - Aggressiver Offset-Abgleich (Final Turbo)
+  description: Verhindert frühzeitiges Abschalten (Idle), indem der Offset aggressiver gesetzt wird, solange die Wunschtemperatur nicht erreicht ist.
   domain: automation
   input:
     climate_entity:
@@ -77,34 +41,32 @@ trigger:
 
 action:
   - variables:
-      # Inputs als lokale Variablen (behebt den UndefinedError)
+      # Zuweisung der Inputs an lokale Variablen
       climate_ent: !input climate_entity
       offset_ent: !input offset_entity
       temp_sensor_ent: !input temp_sensor_entity
       wunsch_temp_ent: !input wunsch_temp_entity
       window_sensor_ent: !input window_sensor_entity
       
-      # Werte auslesen
+      # Werte auslesen (Sicherheits-Defaults bei 20 Grad)
       ist_extern: "{{ states(temp_sensor_ent) | float(20) }}"
       ist_intern: "{{ state_attr(climate_ent, 'current_temperature') | float(20) }}"
       aktueller_offset: "{{ states(offset_ent) | float(0) }}"
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(20) }}"
       
-      # LOGIK:
-      # 1. Messfehler ausgleichen (Ist_Extern - Ist_Intern)
-      # 2. Wunsch-Differenz addieren (Wunsch - Ist_Extern)
-      # Dadurch wird der Offset tiefer gezogen, wenn es im Raum noch zu kalt ist.
+      # TURBO-LOGIK: 
+      # Neuer Offset = Aktueller Offset + (Extern - Intern) + (Wunsch - Extern)
+      # Das zwingt das Thermostat aus dem "Idle", weil es denkt, es sei viel kälter.
       neuer_offset: "{{ (aktueller_offset + (ist_extern - ist_intern) + (wunsch_temp - ist_extern)) | round(1) }}"
 
-  # 1. Abbruch, falls Fenster offen
+  # Fenster-Check
   - if:
       - condition: template
         value_template: "{{ window_sensor_ent != 'none' and is_state(window_sensor_ent, 'on') }}"
     then:
       - stop: "Fenster offen"
 
-  # 2. Offset am Gerät anpassen (nur bei Änderung > 0.1)
-  # Dies zwingt das Ventil aus dem "Idle", da es denkt, es sei kälter im Raum.
+  # Offset am Thermostat setzen
   - if:
       - condition: template
         value_template: "{{ (aktueller_offset - neuer_offset) | abs > 0.1 }}"
@@ -115,13 +77,9 @@ action:
         data:
           value: "{{ neuer_offset }}"
 
-  # 3. Wunschtemperatur an das Thermostat senden
+  # Zieltemperatur synchronisieren
   - service: climate.set_temperature
     target:
       entity_id: "{{ climate_ent }}"
     data:
       temperature: "{{ wunsch_temp }}"
-
-  - platform: state
-    entity_id: !input climate_entity
-    attribute: current_temperature
