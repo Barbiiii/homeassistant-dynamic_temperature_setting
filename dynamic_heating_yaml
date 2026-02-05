@@ -1,6 +1,6 @@
 blueprint:
-  name: Heizung - Aggressiver Offset-Abgleich (Final Turbo)
-  description: Verhindert frühzeitiges Abschalten (Idle), indem der Offset aggressiver gesetzt wird, solange die Wunschtemperatur nicht erreicht ist.
+  name: Heizung - Aggressiver Offset-Abgleich (Turbo Fix)
+  description: Zieht die Differenz von Wunsch- und Ist-Temperatur vom Offset ab, um das Ventil offen zu halten.
   domain: automation
   input:
     climate_entity:
@@ -41,35 +41,32 @@ trigger:
 
 action:
   - variables:
-      # Zuweisung der Inputs an lokale Variablen
       climate_ent: !input climate_entity
       offset_ent: !input offset_entity
       temp_sensor_ent: !input temp_sensor_entity
       wunsch_temp_ent: !input wunsch_temp_entity
       window_sensor_ent: !input window_sensor_entity
       
-      # Werte auslesen (Sicherheits-Defaults bei 20 Grad)
       ist_extern: "{{ states(temp_sensor_ent) | float(20) }}"
       ist_intern: "{{ state_attr(climate_ent, 'current_temperature') | float(20) }}"
       aktueller_offset: "{{ states(offset_ent) | float(0) }}"
       wunsch_temp: "{{ states(wunsch_temp_ent) | float(20) }}"
       
-      # TURBO-LOGIK: 
-      # Neuer Offset = Aktueller Offset + (Extern - Intern) + (Wunsch - Extern)
-      # Das zwingt das Thermostat aus dem "Idle", weil es denkt, es sei viel kälter.
-      neuer_offset: "{{ (aktueller_offset + (ist_extern - ist_intern) + (wunsch_temp - ist_extern)) | round(1) }}"
+      # RECHNUNG:
+      # Wir nehmen den Basis-Offset (Extern - Intern) 
+      # UND ziehen die Differenz (Wunsch - Extern) ab.
+      # Beispiel: (23.2 - 23.2) - (24.0 - 23.2) = -0.8
+      neuer_offset: "{{ ( (ist_extern - ist_intern) - (wunsch_temp - ist_extern) ) | round(1) }}"
 
-  # Fenster-Check
   - if:
       - condition: template
         value_template: "{{ window_sensor_ent != 'none' and is_state(window_sensor_ent, 'on') }}"
     then:
       - stop: "Fenster offen"
 
-  # Offset am Thermostat setzen
   - if:
       - condition: template
-        value_template: "{{ (aktueller_offset - neuer_offset) | abs > 0.1 }}"
+        value_template: "{{ (states(offset_ent) | float(0) - neuer_offset) | abs > 0.1 }}"
     then:
       - service: number.set_value
         target:
@@ -77,7 +74,6 @@ action:
         data:
           value: "{{ neuer_offset }}"
 
-  # Zieltemperatur synchronisieren
   - service: climate.set_temperature
     target:
       entity_id: "{{ climate_ent }}"
