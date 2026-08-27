@@ -1,0 +1,81 @@
+blueprint:
+  name: "Pflanzen-Gieß-Erinnerung in Prozent-Schritten"
+  description: "Sendet eine Benachrichtigung mit individuellem Text, wenn die Bodenfeuchtigkeit unter einen Schwellenwert fällt und danach in eingestellten Prozent-Schritten weiter sinkt."
+  domain: automation
+  input:
+    moisture_sensor:
+      name: Bodenfeuchtigkeits-Sensor
+      description: Der Sensor, der die Feuchtigkeit misst (z.B. Strelitzia: Feuchtigkeit).
+      selector:
+        entity:
+          domain: sensor
+          device_class: moisture
+    threshold:
+      name: Schwellenwert (%)
+      description: Ab wie viel Prozent soll die erste Erinnerung gesendet werden?
+      default: 25
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
+    step_size:
+      name: Schrittgröße (%)
+      description: Nach wie viel Prozent weiterem Abfall soll erneut erinnert werden?
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          step: 1
+          unit_of_measurement: "%"
+    notify_device:
+      name: Benachrichtigungsgerät
+      description: Das Gerät, an das die Push-Nachricht gesendet werden soll.
+      selector:
+        device:
+          integration: mobile_app
+
+trigger:
+  - platform: state
+    entity_id: !input moisture_sensor
+
+condition:
+  - condition: template
+    value_template: >-
+      {% set val = trigger.to_state.state | float(-1) %}
+      {% set threshold_val = float(input_threshold) %}
+      {{ val >= 0 and val <= threshold_val }}
+  - condition: template
+    value_template: >-
+      {% set current = trigger.to_state.state | float(-1) %}
+      {% set previous = trigger.from_state.state | float(-1) %}
+      {% set threshold_val = float(input_threshold) %}
+      {% set step = float(input_step_size) %}
+      
+      {% if previous < 0 or current < 0 %}
+        false
+      {% else %}
+        {% set current_step = ((threshold_val - current) / step) | int %}
+        {% set previous_step = ((threshold_val - previous) / step) | int %}
+        {{ current_step > previous_step }}
+      {% endif %}
+
+variables:
+  input_threshold: !input threshold
+  input_step_size: !input step_size
+  # Schneidet Wörter wie ": Feuchtigkeit" oder " Feuchtigkeit" aus dem Sensor-Namen ab
+  plant_name: >-
+    {% set raw_name = state_attr(trigger.entity_id, 'friendly_name') or 'Pflanze' %}
+    {{ raw_name | replace(': Feuchtigkeit', '') | replace(' Feuchtigkeit', '') }}
+
+action:
+  - domain: mobile_app
+    type: notify
+    device_id: !input notify_device
+    title: "🪴 Durstige Pflanze!"
+    message: >-
+      Hi Barbi, 
+      ich könnte etwas Wasser vertragen. Meine Feuchtigkeit liegt derzeit bei {{ trigger.to_state.state }}%. Bitte gieß mich.
+      Deine {{ plant_name }}
