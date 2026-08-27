@@ -42,28 +42,26 @@ trigger:
     entity_id: !input moisture_sensor
 
 condition:
+  # Wenn du manuell auf "Aktion ausführen" klickst, wird das Überprüfen der Bedingungen übersprungen
   - condition: template
     value_template: >-
-      {% set sensor_id = '!input moisture_sensor' %}
-      {% set threshold_val = !input threshold %}
-      {% set val = states(sensor_id) | float(-1) %}
-      {{ val >= 0 and val <= threshold_val }}
-  - condition: template
-    value_template: >-
-      {% if trigger is not defined or trigger.from_state is not defined or trigger.from_state is none %}
+      {% if trigger is not defined or trigger.to_state is not defined %}
         true
       {% else %}
         {% set current = trigger.to_state.state | float(-1) %}
         {% set previous = trigger.from_state.state | float(-1) %}
-        {% set threshold_val = !input threshold %}
-        {% set step = !input step_size %}
+        {% set threshold_val = input_threshold | float %}
+        {% set step = input_step_size | float %}
         
-        {% if previous < 0 or current < 0 %}
+        {% if current < 0 or current > threshold_val %}
           false
-        {% else %}
+        {% elif previous < 0 or previous <= threshold_val %}
+          {# Prüft, ob ein neuer 5%-Schritt unterschritten wurde #}
           {% set current_step = ((threshold_val - current) / step) | int %}
           {% set previous_step = ((threshold_val - previous) / step) | int %}
           {{ current_step > previous_step }}
+        {% else %}
+          true
         {% endif %}
       {% endif %}
 
