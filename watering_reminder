@@ -4,15 +4,15 @@ blueprint:
   domain: automation
   input:
     moisture_sensor:
-      name: Bodenfeuchtigkeits-Sensor
-      description: Der Sensor, der die Feuchtigkeit misst (z.B. Strelitzia: Feuchtigkeit).
+      name: "Bodenfeuchtigkeits-Sensor"
+      description: "Der Sensor, der die Feuchtigkeit misst (z.B. Strelitzia Feuchtigkeit)."
       selector:
         entity:
           domain: sensor
           device_class: moisture
     threshold:
-      name: Schwellenwert (%)
-      description: Ab wie viel Prozent soll die erste Erinnerung gesendet werden?
+      name: "Schwellenwert (%)"
+      description: "Ab wie viel Prozent soll die erste Erinnerung gesendet werden?"
       default: 25
       selector:
         number:
@@ -21,8 +21,8 @@ blueprint:
           step: 1
           unit_of_measurement: "%"
     step_size:
-      name: Schrittgröße (%)
-      description: Nach wie viel Prozent weiterem Abfall soll erneut erinnert werden?
+      name: "Schrittgröße (%)"
+      description: "Nach wie viel Prozent weiterem Abfall soll erneut erinnert werden?"
       default: 5
       selector:
         number:
@@ -31,8 +31,8 @@ blueprint:
           step: 1
           unit_of_measurement: "%"
     notify_device:
-      name: Benachrichtigungsgerät
-      description: Das Gerät, an das die Push-Nachricht gesendet werden soll.
+      name: "Benachrichtigungsgerät"
+      description: "Das Gerät, an das die Push-Nachricht gesendet werden soll."
       selector:
         device:
           integration: mobile_app
@@ -65,7 +65,6 @@ condition:
 variables:
   input_threshold: !input threshold
   input_step_size: !input step_size
-  # Schneidet Wörter wie ": Feuchtigkeit" oder " Feuchtigkeit" aus dem Sensor-Namen ab
   plant_name: >-
     {% set raw_name = state_attr(trigger.entity_id, 'friendly_name') or 'Pflanze' %}
     {{ raw_name | replace(': Feuchtigkeit', '') | replace(' Feuchtigkeit', '') }}
