@@ -65,8 +65,12 @@ condition:
 variables:
   input_threshold: !input threshold
   input_step_size: !input step_size
+  input_sensor: !input moisture_sensor
+  # Verhindert Fehler beim manuellen Testen:
+  entity_target: "{{ trigger.entity_id if trigger is defined and trigger.entity_id is defined else input_sensor }}"
+  plant_val: "{{ trigger.to_state.state if trigger is defined and trigger.to_state is defined else states(input_sensor) }}"
   plant_name: >-
-    {% set raw_name = state_attr(trigger.entity_id, 'friendly_name') or 'Pflanze' %}
+    {% set raw_name = state_attr(entity_target, 'friendly_name') or 'Pflanze' %}
     {{ raw_name | replace(': Feuchtigkeit', '') | replace(' Feuchtigkeit', '') }}
 
 action:
@@ -76,5 +80,5 @@ action:
     title: "🪴 Durstige Pflanze!"
     message: >-
       Hi Barbi, 
-      ich könnte etwas Wasser vertragen. Meine Feuchtigkeit liegt derzeit bei {{ trigger.to_state.state }}%. Bitte gieß mich.
+      ich könnte etwas Wasser vertragen. Meine Feuchtigkeit liegt derzeit bei {{ plant_val }}%. Bitte gieß mich.
       Deine {{ plant_name }}
