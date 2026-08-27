@@ -37,29 +37,17 @@ blueprint:
         device:
           integration: mobile_app
 
-# Die Variablen werden jetzt ZUERST geladen, damit die Conditions Zugriff darauf haben
-variables:
-  input_threshold: !input threshold
-  input_step_size: !input step_size
-  input_sensor: !input moisture_sensor
-  entity_target: "{{ trigger.entity_id if trigger is defined and trigger.entity_id is defined else input_sensor }}"
-  plant_val: "{{ trigger.to_state.state if trigger is defined and trigger.to_state is defined else states(input_sensor) }}"
-  plant_name: >-
-    {% set raw_name = state_attr(entity_target, 'friendly_name') or 'Pflanze' %}
-    {{ raw_name | replace(': Feuchtigkeit', '') | replace(' Feuchtigkeit', '') }}
-
 trigger:
   - platform: state
     entity_id: !input moisture_sensor
 
 condition:
-  # Bedingung 1: Liegt der aktuelle Wert unter oder gleich dem Schwellenwert?
   - condition: template
     value_template: >-
-      {% set val = plant_val | float(-1) %}
-      {% set threshold_val = input_threshold | float %}
+      {% set sensor_id = '!input moisture_sensor' %}
+      {% set threshold_val = !input threshold %}
+      {% set val = states(sensor_id) | float(-1) %}
       {{ val >= 0 and val <= threshold_val }}
-  # Bedingung 2: Wichtig für den Ablauf & Schrittweite (lässt manuelles Testen zu)
   - condition: template
     value_template: >-
       {% if trigger is not defined or trigger.from_state is not defined or trigger.from_state is none %}
@@ -67,8 +55,8 @@ condition:
       {% else %}
         {% set current = trigger.to_state.state | float(-1) %}
         {% set previous = trigger.from_state.state | float(-1) %}
-        {% set threshold_val = input_threshold | float %}
-        {% set step = input_step_size | float %}
+        {% set threshold_val = !input threshold %}
+        {% set step = !input step_size %}
         
         {% if previous < 0 or current < 0 %}
           false
@@ -80,6 +68,13 @@ condition:
       {% endif %}
 
 action:
+  - variables:
+      sensor_entity: !input moisture_sensor
+      entity_target: "{{ trigger.entity_id if trigger is defined and trigger.entity_id is defined else sensor_entity }}"
+      plant_val: "{{ trigger.to_state.state if trigger is defined and trigger.to_state is defined else states(sensor_entity) }}"
+      plant_name: >-
+        {% set raw_name = state_attr(entity_target, 'friendly_name') or 'Pflanze' %}
+        {{ raw_name | replace(': Feuchtigkeit', '') | replace(' Feuchtigkeit', '') }}
   - domain: mobile_app
     type: notify
     device_id: !input notify_device
